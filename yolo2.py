@@ -2,6 +2,9 @@ import cv2
 import numpy as np
 import time
 from ultralytics import YOLO
+import serial
+
+ser = serial.Serial('/dev/ttyAMA0', 115200)
 
 # ---------------- CONFIG ----------------
 WIDTH = 640
@@ -41,8 +44,22 @@ prev_gray = cv2.GaussianBlur(prev_gray, (21, 21), 0)
 print(" YOLO HYBRID ADAS STARTED")
 
 # ---------------- SERIAL ----------------
+
+# direction = "F"
+# speed = 150
+
+# # Create the message dynamically
+# msg = f"{direction}:{speed}\n"  # e.g. "F:150\n"
+
+# # Convert to bytes and send
+# ser.write(msg.encode())
+
+# print("Sent:", msg.strip())
 def send(cmd):
-    print(f"COMMAND: {cmd}")
+    # print(f"COMMAND: {cmd}")
+    msg = f"{cmd[0]}\n"
+    ser.write(msg.encode())
+    print(msg)
 
 # ---------------- LOOP ----------------
 while True:
