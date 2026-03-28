@@ -30,10 +30,10 @@ def init_serial():
 
         ser = serial.Serial(port, 115200, timeout=1)
         time.sleep(2)
-        print(f"✅ Serial connected on {port}")
+        print(f" Serial connected on {port}")
 
     except Exception as e:
-        print("❌ Serial not connected:", e)
+        print(" Serial not connected:", e)
         ser = None
 
 def send(cmd):
@@ -95,7 +95,7 @@ prev_frame = prev_frame[ROI_Y_START:HEIGHT]
 prev_gray = cv2.cvtColor(prev_frame, cv2.COLOR_BGR2GRAY)
 prev_gray = cv2.GaussianBlur(prev_gray, (21, 21), 0)
 
-print("🚗 ADAS Running (Cross-platform + ROI + Stable Control)")
+print(" ADAS Running (Cross-platform + ROI + Stable Control)")
 
 # ---------------- LOOP ----------------
 while True:
