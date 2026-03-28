@@ -23,17 +23,16 @@ def init_serial():
         system = platform.system()
 
         if system == "Windows":
-            port = "COM3"   # change if needed
+            port = "COM3"
         else:
-            # Raspberry Pi / Linux
-            port = "/dev/ttyAMA0"  # or /dev/ttyUSB0
+            port = "/dev/ttyAMA0"
 
         ser = serial.Serial(port, 115200, timeout=1)
         time.sleep(2)
-        print(f" Serial connected on {port}")
+        print(f"Serial connected on {port}")
 
     except Exception as e:
-        print(" Serial not connected:", e)
+        print("Serial not connected:", e)
         ser = None
 
 def send(cmd):
@@ -52,8 +51,10 @@ HEIGHT = 480
 ROI_Y_START = int(HEIGHT * 0.3)
 
 DIST_CONST = 550
-MIN_AREA = 1500
-DIST_THRESHOLD = 130
+DIST_THRESHOLD = 180     # earlier detection
+EMERGENCY_DIST = 90      # immediate reverse
+
+MIN_AREA = 900           # more sensitive motion
 
 ALPHA = 0.9
 steer_smoothed = 0
@@ -95,9 +96,11 @@ prev_frame = prev_frame[ROI_Y_START:HEIGHT]
 prev_gray = cv2.cvtColor(prev_frame, cv2.COLOR_BGR2GRAY)
 prev_gray = cv2.GaussianBlur(prev_gray, (21, 21), 0)
 
-print(" ADAS Running (Cross-platform + ROI + Stable Control)")
+print("ADAS Running (FAST MODE)")
 
 # ---------------- LOOP ----------------
+frame_count = 0
+
 while True:
     ret, frame = cap.read()
     if not ret:
@@ -125,8 +128,12 @@ while True:
 
     prev_gray = gray
 
-    # ================= YOLO DETECTION =================
-    results = model(frame, conf=0.5, imgsz=320, verbose=False)
+    # ================= YOLO (SKIPPED FRAMES FOR SPEED) =================
+    frame_count += 1
+    if frame_count % 2 == 0:
+        results = model(frame, conf=0.45, imgsz=256, verbose=False)
+    else:
+        results = []
 
     human_boxes = []
     obstacle_boxes = []
@@ -136,7 +143,7 @@ while True:
             cls = int(box.cls[0])
             conf = float(box.conf[0])
 
-            if conf < 0.5:
+            if conf < 0.45:
                 continue
 
             x1, y1, x2, y2 = map(int, box.xyxy[0])
@@ -201,26 +208,29 @@ while True:
 
         # Steering influence
         offset = (cx - WIDTH // 2) / (WIDTH // 2)
-        weight = 2.0 / (dist + 1e-5)
+        weight = 2.5 / (dist + 1e-5)
 
         if label == "HUMAN":
             weight *= 1.5
+        elif label == "MOTION":
+            weight *= 2.0   # fast reaction
 
         steer += offset * weight
 
         min_dist = min(min_dist, dist)
 
-        # Draw boxes
+        # Draw
         color = (0, 255, 0) if label == "HUMAN" else (255, 0, 0) if label == "OBSTACLE" else (0, 0, 255)
         cv2.rectangle(frame, (x, y), (x + w, y + h), color, 2)
 
-    # ================= SMOOTH STEERING =================
+    # ================= SMOOTH =================
     steer_smoothed = ALPHA * steer_smoothed + (1 - ALPHA) * steer
     steer_final = steer_smoothed * 0.6
 
     # ================= DECISION =================
-    if min_dist < 60:
+    if min_dist < EMERGENCY_DIST:
         action = "BACK"
+
     elif min_dist < DIST_THRESHOLD:
         if center_blocked:
             if not left_blocked:
@@ -235,15 +245,16 @@ while True:
             action = "LEFT"
         else:
             action = "FORWARD"
+
     else:
-        if steer_final > 0.25:
+        if steer_final > 0.2:
             action = "RIGHT"
-        elif steer_final < -0.25:
+        elif steer_final < -0.2:
             action = "LEFT"
         else:
             action = "FORWARD"
 
-    # ================= SEND ONLY IF CHANGED =================
+    # ================= SEND =================
     if action != last_action:
         send(action)
         last_action = action
@@ -257,12 +268,10 @@ while True:
 
     cv2.line(frame, (0, ROI_Y_START), (WIDTH, ROI_Y_START), (255, 255, 0), 2)
 
-    cv2.imshow("ADAS System", frame)
+    cv2.imshow("ADAS System (FAST)", frame)
 
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
-
-    time.sleep(0.03)
 
 # ---------------- CLEANUP ----------------
 cap.release()
