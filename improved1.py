@@ -4,39 +4,14 @@ import time
 import platform
 from ultralytics import YOLO
 
-# ---------------- SERIAL SETUP ----------------
-try:
-    import serial
-    SERIAL_AVAILABLE = True
-except:
-    SERIAL_AVAILABLE = False
 
-ser = None
+import serial
 
-def init_serial():
-    global ser
-    if not SERIAL_AVAILABLE:
-        print("Serial library not available")
-        return
+ser = serial.Serial('/dev/ttyAMA0', 115200)
 
-    try:
-        system = platform.system()
-
-        if system == "Windows":
-            port = "COM3"
-        else:
-            port = "/dev/ttyAMA0"
-
-        ser = serial.Serial(port, 115200, timeout=1)
-        time.sleep(2)
-        print(f"Serial connected on {port}")
-
-    except Exception as e:
-        print("Serial not connected:", e)
-        ser = None
 
 def send(cmd):
-    msg = f"{cmd}\n"
+    msg = f"{cmd[0]}\n"
     if ser:
         try:
             ser.write(msg.encode())
@@ -68,7 +43,7 @@ def estimate_distance(h):
     return DIST_CONST / h
 
 # ---------------- INIT ----------------
-init_serial()
+
 
 print("Loading YOLO...")
 model = YOLO("yolov8n.pt")
@@ -258,6 +233,7 @@ while True:
     if action != last_action:
         send(action)
         last_action = action
+        print("lasttt",action)
 
     # ================= DISPLAY =================
     cv2.putText(frame, f"STEER: {steer_final:.3f}", (10, 30),
